@@ -50,7 +50,7 @@ impl Parse for Arg {
                 match name_str.as_str() {
                     "mermaid" => Ok(Mermaid(name, lit)),
                     "placement" => Ok(Placement(name, lit)),
-                    other => abort!(name, "unexpected attribute parameter `{}`, allowed parameters: [`mermaid`, `placement`]", name_str)
+                    _ => abort!(name, "unexpected attribute parameter `{}`, allowed parameters: [`mermaid`, `placement`]", name_str)
                 }
             } else {
                 abort!(assign_token, "expected `string literal` after `=`")

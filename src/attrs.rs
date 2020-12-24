@@ -3,8 +3,7 @@ use proc_macro_error::{proc_macro_error, emit_call_site_warning, abort, ResultEx
 use itertools::{Itertools, Either};
 use syn::{parse_macro_input, DeriveInput, AttributeArgs, Attribute, MetaNameValue, Lit, Ident};
 use quote::quote;
-use std::iter;
-use std::{cell::Cell, borrow::Cow, fmt};
+use std::{iter, fmt};
 
 #[derive(Clone, Debug)]
 pub struct Attrs(Vec<Attr>);
@@ -37,60 +36,19 @@ impl fmt::Debug for Attr {
 
 impl quote::ToTokens for Attrs {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        // TODO normal iterator with by_ref
-        struct Walker<'a, T> {
-            items: &'a [T],
-            current: Cell<usize>,
-        }
-
-        impl<'a, T> Walker<'a, T> {
-            pub fn new(items: &'a [T]) -> Self {
-                Walker { items, current: Cell::new(0) }
-            }
-
-            pub fn peek(&self) -> Option<&T> {
-                self.items.get(self.current.get())
-            }
-
-            pub fn next(&self) -> Option<&T> {
-                let x = self.peek();
-                self.advance(1);
-                x
-            }
-
-            pub fn advance(&self, cnt: usize) {
-                self.current.set(self.current.get() + cnt);
-            }
-        }
-
-        impl<'a, T> AsRef<[T]> for Walker<'a, T> {
-            fn as_ref(&self) -> &[T] {
-                &self.items[self.current.get()..]
-            }
-        } 
-
-        let attrs = Walker::new(&self.0);
-
-        while attrs.peek().is_some() {
-            let attr = attrs.next().unwrap();
+        let mut attrs = self.0.iter().peekable();
+        while let Some(attr) = attrs.next() {
             match attr {
                 Attr::Forward(attr) => attr.to_tokens(tokens),
                 Attr::DocComment(_, comment) => tokens.extend(quote! {
                     #[doc = #comment]
                 }),
-                Attr::DiagramStart(ident) => {
-                    let end_pos = attrs.as_ref().iter().position(|x| x.is_diagram_end());
-                    let diagram = match end_pos {
-                        None => abort!(ident, "diagram block is not terminated"),
-                        Some(pos) => {
-                            let iter = attrs.as_ref()[..pos].iter().map(Attr::expect_diagram_entry_text);
-                            attrs.advance(pos);
-                            iter
-                        }
-                    };
-
+                Attr::DiagramStart(_) => {
                     let preabmle = iter::once(r#"<div class="mermaid">"#);
                     let postamble = iter::once("</div>");
+
+                    let diagram = attrs.by_ref().take_while(|x| !x.is_diagram_end())
+                        .map(Attr::expect_diagram_entry_text);
 
                     let body = preabmle.chain(diagram).chain(postamble).join("\n");
 
@@ -98,7 +56,7 @@ impl quote::ToTokens for Attrs {
                 },
                 // If that happens, then the parsing stage is faulty: doc comments outside of
                 // in between Start and End tokens are to be emitted as Attr::Forward
-                Attr::DiagramEntry(ident, body) => {
+                Attr::DiagramEntry(_, body) => {
                     emit_call_site_warning!("encountered an unexpected attribute that's going to be ignored, this is a bug! ({})", body);
                 },
                 Attr::DiagramEnd(_) => (),
@@ -119,7 +77,7 @@ pub fn convert_attrs(attrs: Vec<Attribute>) -> syn::Result<Attrs> {
     use syn::Lit::*;
     use syn::Meta::*;
 
-    let mut is_inside_diagram_span = false;
+    let mut diagram_start_ident = None;
 
     let attrs = attrs.into_iter().flat_map(|attr| {
         match attr.parse_meta() {
@@ -132,14 +90,14 @@ pub fn convert_attrs(attrs: Vec<Attribute>) -> syn::Result<Attrs> {
                 let mut temp = vec![];
 
                 if start.is_some() {
-                    is_inside_diagram_span = true;
+                    diagram_start_ident = Some(ident.clone());
                     pre.map(|s| temp.push(Attr::DocComment(ident.clone(), s.to_owned())));
                     temp.push(Attr::DiagramStart(ident.clone()));
                 }
 
                 if let Some(body) = body {
                     let body = body.to_owned();
-                    if is_inside_diagram_span {
+                    if diagram_start_ident.is_some() {
                         temp.push(Attr::DiagramEntry(ident.clone(), body))
                     } else {
                         temp.push(Attr::Forward(attr));
@@ -147,7 +105,7 @@ pub fn convert_attrs(attrs: Vec<Attribute>) -> syn::Result<Attrs> {
                 }
 
                 if end.is_some() {
-                    is_inside_diagram_span = false;
+                    diagram_start_ident = None;
                     temp.push(Attr::DiagramEnd(ident.clone()));
                     post.map(|s| temp.push(Attr::DocComment(ident.clone(), s.to_owned())));
                 }
@@ -157,6 +115,10 @@ pub fn convert_attrs(attrs: Vec<Attribute>) -> syn::Result<Attrs> {
             _ => Either::Right(iter::once(Attr::Forward(attr)))
         }
     }).collect();
+
+    if let Some(ident) = diagram_start_ident {
+        abort!(ident, "diagram code block is not terminated");
+    }
 
     Ok(Attrs(attrs))
 }
