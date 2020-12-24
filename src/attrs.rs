@@ -1,7 +1,7 @@
-use proc_macro2::{TokenStream, Span};
-use proc_macro_error::{proc_macro_error, emit_call_site_warning, abort, ResultExt};
+use proc_macro2::TokenStream;
+use proc_macro_error::{emit_call_site_warning, abort};
 use itertools::{Itertools, Either};
-use syn::{parse_macro_input, DeriveInput, AttributeArgs, Attribute, MetaNameValue, Lit, Ident};
+use syn::{Attribute, MetaNameValue, Ident};
 use quote::quote;
 use std::{iter, fmt};
 

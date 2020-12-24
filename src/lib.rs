@@ -1,9 +1,8 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
 use proc_macro_error::{proc_macro_error, abort, ResultExt};
-use itertools::Itertools;
 
-use syn::{parse_macro_input, DeriveInput, AttributeArgs, Attribute, MetaNameValue, Lit};
+use syn::{parse_macro_input, Attribute};
 use quote::quote;
 
 mod parse;
@@ -16,7 +15,7 @@ mod attrs;
 #[proc_macro_attribute]
 #[proc_macro_error]
 pub fn aquamarine(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as parse::Args);
+    let _args = parse_macro_input!(args as parse::Args);
     let input = parse_macro_input!(input as parse::Input);
 
     check_attrs(&input.attrs);
