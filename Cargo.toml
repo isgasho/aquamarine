@@ -15,6 +15,7 @@ quote = "1"
 proc-macro2 = "1"
 proc-macro-error = "1"
 itertools = "0.9"
+propane = "0.1.0"
 
 [dependencies.syn]
 version = "1"

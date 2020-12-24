@@ -22,7 +22,6 @@ impl Parse for Input {
     }
 }
 
-#[derive(Debug)]
 pub struct Args(pub Punctuated<Arg, Token![,]>);
 
 impl Parse for Args {
@@ -32,7 +31,6 @@ impl Parse for Args {
     }
 }
 
-#[derive(Debug)]
 pub enum Arg {
     Mermaid(Ident, LitStr),
     Placement(Ident, LitStr),
